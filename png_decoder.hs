@@ -5,7 +5,6 @@ import qualified Data.Word as W
 
 import System.Environment
 
-type ByteLength = Int
 type ByteContent = [W.Word8]
 
 data PngChunk = PngSignature
@@ -47,7 +46,7 @@ printPngChunks bytes = do
     mapM_ (putStrLn . show) chunks
 
 findPngChunks :: [W.Word8] -> [PngChunk]
-findPngChunks bytes = getChunks (processPng' (PngReadState bytes []))
+findPngChunks bytes = getChunks (processPng (PngReadState bytes []))
 
 -- Looks for the PNG signature identifying the data stream as being from a PNG.
 --
@@ -60,41 +59,31 @@ isPngData _ = False
 getChunks :: PngReadState -> [PngChunk]
 getChunks (PngReadState bytes chunks) = reverse chunks
 
-processPng :: FilePath -> IO ()
-processPng fileName = do
-    contents <- B.readFile fileName
-    let bytes = B.unpack contents
-    let chunks = processPng' (PngReadState bytes [])
-    let readState = PngReadState bytes []
-    let pngChunks = getChunks (processPng' readState)
-    putStrLn (show pngChunks)
-    putStrLn ("Processed " ++ show (length pngChunks)  ++ " chunks")
-
-processPng' :: PngReadState -> PngReadState
-processPng' (PngReadState (137:80:78:71:13:10:26:10:rest) chunks) = processPng' (PngReadState rest   (PngSignature:chunks))
-processPng' (PngReadState (b1:b2:b3:b4:73:72:68:82:rest) chunks) = processPng' (PngReadState (drop chunkLength rest) ((IHDR (take chunkLength rest)):chunks))
+processPng :: PngReadState -> PngReadState
+processPng (PngReadState (137:80:78:71:13:10:26:10:rest) chunks) = processPng (PngReadState rest   (PngSignature:chunks))
+processPng (PngReadState (b1:b2:b3:b4:73:72:68:82:rest) chunks) = processPng (PngReadState (drop chunkLength rest) ((IHDR (take chunkLength rest)):chunks))
     where byteLength = decodeInt32BE b1 b2 b3 b4
           chunkLength = byteLength + 4
-processPng' (PngReadState (b1:b2:b3:b4:73:68:65:84:rest) chunks) = processPng' (PngReadState (drop chunkLength rest) ((IDAT (take chunkLength rest)):chunks))
+processPng (PngReadState (b1:b2:b3:b4:73:68:65:84:rest) chunks) = processPng (PngReadState (drop chunkLength rest) ((IDAT (take chunkLength rest)):chunks))
     where byteLength = decodeInt32BE b1 b2 b3 b4
           chunkLength = byteLength + 4
-processPng' (PngReadState (b1:b2:b3:b4:115:82:71:66:rest) chunks) = processPng' (PngReadState (drop chunkLength rest) ((SRGB (take chunkLength rest)):chunks))
+processPng (PngReadState (b1:b2:b3:b4:115:82:71:66:rest) chunks) = processPng (PngReadState (drop chunkLength rest) ((SRGB (take chunkLength rest)):chunks))
     where byteLength = decodeInt32BE b1 b2 b3 b4
           chunkLength = byteLength + 4
-processPng' (PngReadState (b1:b2:b3:b4:103:65:77:65:rest) chunks) = processPng' (PngReadState (drop chunkLength rest) ((GAMA (take chunkLength rest)):chunks))
+processPng (PngReadState (b1:b2:b3:b4:103:65:77:65:rest) chunks) = processPng (PngReadState (drop chunkLength rest) ((GAMA (take chunkLength rest)):chunks))
     where byteLength = decodeInt32BE b1 b2 b3 b4
           chunkLength = byteLength + 4
-processPng' (PngReadState (b1:b2:b3:b4:112:72:89:115:rest) chunks) = processPng' (PngReadState (drop chunkLength rest) ((PHYS (take chunkLength rest)):chunks))
+processPng (PngReadState (b1:b2:b3:b4:112:72:89:115:rest) chunks) = processPng (PngReadState (drop chunkLength rest) ((PHYS (take chunkLength rest)):chunks))
     where byteLength = decodeInt32BE b1 b2 b3 b4
           chunkLength = byteLength + 4
-processPng' (PngReadState (b1:b2:b3:b4:73:69:78:68:rest) chunks) = processPng' (PngReadState (drop chunkLength rest) ((IEND (take chunkLength rest)):chunks))
+processPng (PngReadState (b1:b2:b3:b4:73:69:78:68:rest) chunks) = processPng (PngReadState (drop chunkLength rest) ((IEND (take chunkLength rest)):chunks))
     where byteLength = decodeInt32BE b1 b2 b3 b4
           chunkLength = byteLength + 4
-processPng' (PngReadState (b1:b2:b3:b4:116:82:78:83:rest) chunks) = processPng' (PngReadState (drop chunkLength rest) ((TRNS (take chunkLength rest)):chunks))
+processPng (PngReadState (b1:b2:b3:b4:116:82:78:83:rest) chunks) = processPng (PngReadState (drop chunkLength rest) ((TRNS (take chunkLength rest)):chunks))
     where byteLength = decodeInt32BE b1 b2 b3 b4
           chunkLength = byteLength + 4
-processPng' (PngReadState [] chunks) = PngReadState [] chunks
-processPng' (PngReadState (x:xs) chunks) = processPng' (PngReadState xs ((Unknown):chunks))
+processPng (PngReadState [] chunks) = PngReadState [] chunks
+processPng (PngReadState (x:xs) chunks) = processPng (PngReadState xs ((Unknown):chunks))
 
 printUsage :: IO ()
 printUsage = do
